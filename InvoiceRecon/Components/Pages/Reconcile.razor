@@ -1,0 +1,189 @@
+@page "/"
+@page "/reconcile"
+@using InvoiceRecon.Models
+@using InvoiceRecon.Services
+@inject ReconciliationService Recon
+@rendermode InteractiveServer
+
+<PageTitle>Invoice Reconciliation</PageTitle>
+
+<h1>Invoice Reconciliation</h1>
+
+<div class="summary">
+    <div class="stat"><span class="stat-value">@_rows.Count(r => r.Status == "Matched")</span> Matched</div>
+    <div class="stat"><span class="stat-value">@_rows.Count(r => r.Status == "Discrepancy")</span> Discrepancy</div>
+    <div class="stat"><span class="stat-value">@_rows.Count(r => r.Status == "Unmatched")</span> Unmatched</div>
+    <div class="stat"><span class="stat-value">@_unapplied.Sum(p => p.Amount).ToString("C")</span> Unapplied</div>
+</div>
+
+<div class="toolbar">
+    <button class="btn primary" disabled="@_busy" @onclick="RunAutoMatch">Run auto-match</button>
+    <button class="btn" disabled="@_busy" @onclick="ResetAll">Reset all matches</button>
+    <button class="btn" disabled="@_busy" @onclick="LoadAsync">Reload</button>
+    @if (_message is not null)
+    {
+        <span class="message">@_message</span>
+    }
+</div>
+
+<h2>Invoices</h2>
+<table>
+    <thead>
+        <tr>
+            <th>Invoice</th>
+            <th>Customer</th>
+            <th>Reference</th>
+            <th class="num">Amount</th>
+            <th>Issued</th>
+            <th>Status</th>
+            <th>Matched payment</th>
+            <th class="num">Delta</th>
+            <th>Action</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var row in _rows)
+        {
+            <tr>
+                <td>@row.Invoice.InvoiceNumber</td>
+                <td>@row.Invoice.CustomerName</td>
+                <td>@row.Invoice.Reference</td>
+                <td class="num">@row.Invoice.Amount.ToString("C")</td>
+                <td>@row.Invoice.IssueDate.ToString("yyyy-MM-dd")</td>
+                <td><span class="badge @row.Status.ToLowerInvariant()">@row.Status</span></td>
+                <td>
+                    @if (row.Payment is not null)
+                    {
+                        @($"{row.Payment.BankReference} ({row.Invoice.MatchKind})")
+                    }
+                </td>
+                <td class="num @(row.Delta == 0 ? "" : "delta")">
+                    @(row.Delta == 0 ? "" : row.Delta.ToString("+#,##0.00;-#,##0.00"))
+                </td>
+                <td>
+                    @if (row.IsMatched)
+                    {
+                        <button class="btn small" disabled="@_busy" @onclick="() => Unmatch(row.Invoice.Id)">Unmatch</button>
+                    }
+                    else if (_unapplied.Count > 0)
+                    {
+                        <select @bind="_selection[row.Invoice.Id]">
+                            <option value="0">Select a payment...</option>
+                            @foreach (var payment in _unapplied)
+                            {
+                                <option value="@payment.Id">
+                                    @payment.BankReference - @payment.Amount.ToString("C") - @payment.PayerName
+                                </option>
+                            }
+                        </select>
+                        <button class="btn small" disabled="@(_busy || Selected(row.Invoice.Id) == 0)"
+                                @onclick="() => Match(row.Invoice.Id)">Match</button>
+                    }
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<h2>Unapplied payments</h2>
+@if (_unapplied.Count == 0)
+{
+    <p class="empty">Every payment has been applied to an invoice.</p>
+}
+else
+{
+    <table>
+        <thead>
+            <tr>
+                <th>Bank reference</th>
+                <th>Payer</th>
+                <th class="num">Amount</th>
+                <th>Received</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var payment in _unapplied)
+            {
+                <tr>
+                    <td>@payment.BankReference</td>
+                    <td>@payment.PayerName</td>
+                    <td class="num">@payment.Amount.ToString("C")</td>
+                    <td>@payment.ReceivedDate.ToString("yyyy-MM-dd")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<ReconciliationRow> _rows = [];
+    private List<Payment> _unapplied = [];
+    private readonly Dictionary<int, int> _selection = [];
+    private string? _message;
+    private bool _busy;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _rows = await Recon.GetInvoicesAsync();
+        _unapplied = await Recon.GetUnappliedPaymentsAsync();
+
+        // @bind reads the dictionary by index, so every row needs an entry. Selections pointing
+        // at a payment that is no longer available are reset.
+        foreach (var row in _rows)
+        {
+            if (!_unapplied.Any(p => p.Id == _selection.GetValueOrDefault(row.Invoice.Id)))
+            {
+                _selection[row.Invoice.Id] = 0;
+            }
+        }
+    }
+
+    private int Selected(int invoiceId) => _selection.GetValueOrDefault(invoiceId);
+
+    private async Task RunAutoMatch()
+    {
+        await RunAsync(async () =>
+        {
+            var result = await Recon.RunAutoMatchAsync();
+            _message = result.Total == 0
+                ? "No new matches found."
+                : $"Matched {result.Total}: {result.ExactMatches} on reference + amount, "
+                  + $"{result.ReferenceOnlyMatches} on reference only, {result.AmountOnlyMatches} on amount only.";
+        });
+    }
+
+    private Task ResetAll() => RunAsync(async () =>
+    {
+        await Recon.ResetAllAsync();
+        _message = "All matches cleared.";
+    });
+
+    private Task Match(int invoiceId) => RunAsync(async () =>
+    {
+        await Recon.MatchAsync(invoiceId, Selected(invoiceId));
+        _selection[invoiceId] = 0;
+        _message = "Payment applied.";
+    });
+
+    private Task Unmatch(int invoiceId) => RunAsync(async () =>
+    {
+        await Recon.UnmatchAsync(invoiceId);
+        _message = "Match removed.";
+    });
+
+    private async Task RunAsync(Func<Task> action)
+    {
+        _busy = true;
+        try
+        {
+            await action();
+            await LoadAsync();
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}
