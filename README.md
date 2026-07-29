@@ -9,6 +9,7 @@ SQL Server.
 ```bash
 docker compose up -d                      # SQL Server 2022 on localhost:1433
 dotnet run --project InvoiceRecon         # then open the URL it prints
+dotnet test                               # 24 tests, no Docker required
 ```
 
 The app creates the `InvoiceRecon` database and seeds ~10 invoices and ~10 payments on first
@@ -49,6 +50,30 @@ no matching invoice.
 | `InvoiceRecon/Data/DbInitializer.cs` | retrying `EnsureCreated` + demo seed |
 | `InvoiceRecon/Services/ReconciliationService.cs` | the matching engine |
 | `InvoiceRecon/Components/Pages/Reconcile.razor` | the UI |
+| `InvoiceRecon.Tests/` | xUnit tests for the matching engine |
+
+## Tests
+
+`dotnet test` — 24 xUnit tests, all Arrange/Act/Assert with FluentAssertions, covering the
+matching engine and the derived row status.
+
+They run against a fresh **SQLite in-memory** database per test rather than SQL Server, so the
+suite needs no Docker and finishes in under a second. The tradeoff is that they exercise EF Core
+and the service logic, not SQL Server specifics — the filtered unique index and `decimal(18,2)`
+behave differently there. All amount comparisons happen in memory rather than in SQL, so SQLite's
+lack of a decimal type does not affect what is under test.
+
+What they pin down:
+
+- Each auto-match pass in isolation, including reference normalization (`cyb 1009` matches
+  `CYB-1009`) and the signed delta on over- and under-payments.
+- The cases the engine must *refuse* to guess at: two invoices sharing an amount, two payments
+  sharing an amount.
+- Pass ordering — a payment claimed on reference is not available to a later amount-only match.
+- That a run ignores invoices and payments that are already reconciled, and is idempotent.
+- Manual match/unmatch/reset, including two users racing for the same payment.
+- A golden test asserting the shipped demo seed produces exactly the 4/2/1 outcome documented
+  above, so changing the seed or the engine surfaces immediately.
 
 ## PoC shortcuts
 
@@ -59,7 +84,11 @@ Deliberate, and what you would change first for anything real:
 - Matching runs in memory over all open invoices and payments; fine for tens of rows, not for
   hundreds of thousands.
 - One invoice maps to at most one payment. No partial payments, no one-payment-covers-many-invoices.
-- No authentication, no audit trail, no tests.
+- No authentication and no audit trail. Tests cover the engine only — nothing drives the Blazor
+  component itself (that would want bUnit).
+- FluentAssertions is pinned to **7.2.2**, the last Apache-2.0 release. Version 8 moved to the
+  Xceed Community License, which requires a paid licence for commercial use. If that is a problem,
+  `AwesomeAssertions` is a drop-in fork of 7.x that stays Apache-2.0.
 
 ## Apple Silicon note
 

@@ -45,7 +45,7 @@ public static class DbInitializer
     // The seed is arranged so a single auto-match run demonstrates every outcome:
     // clean matches, amount discrepancies, an amount-only match, an ambiguous pair the
     // engine declines, an invoice nobody paid, and payments with no invoice.
-    private static IEnumerable<Payment> SeedPayments() =>
+    public static IEnumerable<Payment> SeedPayments() =>
     [
         new() { BankReference = "ACME-1001", PayerName = "Acme Corp",        Amount = 1250.00m, ReceivedDate = new(2026, 6, 4) },
         new() { BankReference = "GBX-1002",  PayerName = "Globex Ltd",       Amount = 3400.50m, ReceivedDate = new(2026, 6, 6) },
@@ -59,7 +59,7 @@ public static class DbInitializer
         new() { BankReference = "TRF-55120", PayerName = "Duplicate Sender", Amount = 1250.00m, ReceivedDate = new(2026, 6, 23) }, // orphan
     ];
 
-    private static IEnumerable<Invoice> SeedInvoices() =>
+    public static IEnumerable<Invoice> SeedInvoices() =>
     [
         new() { InvoiceNumber = "INV-1001", CustomerName = "Acme Corp",         Reference = "ACME-1001", Amount = 1250.00m, IssueDate = new(2026, 6, 1) },
         new() { InvoiceNumber = "INV-1002", CustomerName = "Globex Ltd",        Reference = "GBX-1002",  Amount = 3400.50m, IssueDate = new(2026, 6, 3) },
