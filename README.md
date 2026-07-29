@@ -51,6 +51,7 @@ no matching invoice.
 | `InvoiceRecon/Services/ReconciliationService.cs` | the matching engine |
 | `InvoiceRecon/Components/Pages/Reconcile.razor` | the UI |
 | `InvoiceRecon.Tests/` | xUnit tests for the matching engine |
+| `terraform/` | sample Azure deployment — App Service + Azure SQL, never applied for real |
 
 ## Tests
 

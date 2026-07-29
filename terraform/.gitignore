@@ -1,0 +1,16 @@
+.terraform/
+# .terraform.lock.hcl is deliberately NOT ignored - commit it after the first `terraform init`
+# so everyone resolves the same provider versions.
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+*.tfvars
+!*.tfvars.example
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+tfplan

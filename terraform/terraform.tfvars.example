@@ -1,0 +1,18 @@
+# Copy to terraform.tfvars and fill in. terraform.tfvars is gitignored.
+
+subscription_id = "00000000-0000-0000-0000-000000000000"
+
+# location    = "eastus"
+# environment = "poc"
+
+# Cheapest working combination; B1 is needed for Always On.
+# app_service_sku_name = "B1"
+# sql_sku_name         = "Basic"
+
+# Let your workstation reach the SQL server directly: curl -s ifconfig.me
+# client_ip_address = "203.0.113.4"
+
+# tags = {
+#   owner       = "sean"
+#   cost-center = "demo"
+# }
