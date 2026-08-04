@@ -19,16 +19,17 @@ var app = builder.Build();
 
 await DbInitializer.InitializeAsync(app.Services, app.Logger);
 
-// Configure the HTTP request pipeline.
-if (!app.Environment.IsDevelopment())
+var isE2E = app.Environment.IsEnvironment("E2E");
+
+if (!app.Environment.IsDevelopment() && !isE2E)
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
-    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
 }
+
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 
-if (!app.Environment.IsEnvironment("E2E"))
+if (!isE2E)
 {
     app.UseHttpsRedirection();
 }
