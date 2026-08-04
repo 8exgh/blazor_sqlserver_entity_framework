@@ -7,112 +7,146 @@
 
 <PageTitle>Invoice Reconciliation</PageTitle>
 
-<h1>Invoice Reconciliation</h1>
-
 <div class="summary">
-    <div class="stat"><span class="stat-value">@_rows.Count(r => r.Status == "Matched")</span> Matched</div>
-    <div class="stat"><span class="stat-value">@_rows.Count(r => r.Status == "Discrepancy")</span> Discrepancy</div>
-    <div class="stat"><span class="stat-value">@_rows.Count(r => r.Status == "Unmatched")</span> Unmatched</div>
-    <div class="stat"><span class="stat-value">@_unapplied.Sum(p => p.Amount).ToString("C")</span> Unapplied</div>
+    <div class="stat matched" data-testid="stat-matched">
+        <span class="stat-label">Matched</span>
+        <span class="stat-value">@_rows.Count(r => r.Status == "Matched")</span>
+    </div>
+    <div class="stat discrepancy" data-testid="stat-discrepancy">
+        <span class="stat-label">Discrepancy</span>
+        <span class="stat-value">@_rows.Count(r => r.Status == "Discrepancy")</span>
+    </div>
+    <div class="stat unmatched" data-testid="stat-unmatched">
+        <span class="stat-label">Unmatched</span>
+        <span class="stat-value">@_rows.Count(r => r.Status == "Unmatched")</span>
+    </div>
+    <div class="stat unapplied" data-testid="stat-unapplied">
+        <span class="stat-label">Unapplied</span>
+        <span class="stat-value">@_unapplied.Sum(p => p.Amount).ToString("C")</span>
+    </div>
+</div>
+
+<div class="progress-card">
+    <div class="progress-header">
+        <span>Reconciliation progress</span>
+        <span class="pct" data-testid="progress-pct">@ReconciledPercent%</span>
+    </div>
+    <div class="progress-track">
+        <div class="progress-fill" style="width: @(ReconciledPercent)%"></div>
+    </div>
 </div>
 
 <div class="toolbar">
-    <button class="btn primary" disabled="@_busy" @onclick="RunAutoMatch">Run auto-match</button>
-    <button class="btn" disabled="@_busy" @onclick="ResetAll">Reset all matches</button>
-    <button class="btn" disabled="@_busy" @onclick="LoadAsync">Reload</button>
+    <button class="btn primary" data-testid="run-auto-match" disabled="@_busy" @onclick="RunAutoMatch">Run auto-match</button>
+    <button class="btn" data-testid="reset-all" disabled="@_busy" @onclick="ResetAll">Reset all matches</button>
+    <button class="btn" data-testid="reload" disabled="@_busy" @onclick="LoadAsync">Reload</button>
     @if (_message is not null)
     {
-        <span class="message">@_message</span>
+        <span class="message" data-testid="message">@_message</span>
     }
 </div>
 
-<h2>Invoices</h2>
-<table>
-    <thead>
-        <tr>
-            <th>Invoice</th>
-            <th>Customer</th>
-            <th>Reference</th>
-            <th class="num">Amount</th>
-            <th>Issued</th>
-            <th>Status</th>
-            <th>Matched payment</th>
-            <th class="num">Delta</th>
-            <th>Action</th>
-        </tr>
-    </thead>
-    <tbody>
-        @foreach (var row in _rows)
-        {
-            <tr>
-                <td>@row.Invoice.InvoiceNumber</td>
-                <td>@row.Invoice.CustomerName</td>
-                <td>@row.Invoice.Reference</td>
-                <td class="num">@row.Invoice.Amount.ToString("C")</td>
-                <td>@row.Invoice.IssueDate.ToString("yyyy-MM-dd")</td>
-                <td><span class="badge @row.Status.ToLowerInvariant()">@row.Status</span></td>
-                <td>
-                    @if (row.Payment is not null)
-                    {
-                        @($"{row.Payment.BankReference} ({row.Invoice.MatchKind})")
-                    }
-                </td>
-                <td class="num @(row.Delta == 0 ? "" : "delta")">
-                    @(row.Delta == 0 ? "" : row.Delta.ToString("+#,##0.00;-#,##0.00"))
-                </td>
-                <td>
-                    @if (row.IsMatched)
-                    {
-                        <button class="btn small" disabled="@_busy" @onclick="() => Unmatch(row.Invoice.Id)">Unmatch</button>
-                    }
-                    else if (_unapplied.Count > 0)
-                    {
-                        <select @bind="_selection[row.Invoice.Id]">
-                            <option value="0">Select a payment...</option>
-                            @foreach (var payment in _unapplied)
-                            {
-                                <option value="@payment.Id">
-                                    @payment.BankReference - @payment.Amount.ToString("C") - @payment.PayerName
-                                </option>
-                            }
-                        </select>
-                        <button class="btn small" disabled="@(_busy || Selected(row.Invoice.Id) == 0)"
-                                @onclick="() => Match(row.Invoice.Id)">Match</button>
-                    }
-                </td>
-            </tr>
-        }
-    </tbody>
-</table>
-
-<h2>Unapplied payments</h2>
-@if (_unapplied.Count == 0)
-{
-    <p class="empty">Every payment has been applied to an invoice.</p>
-}
-else
-{
-    <table>
+<div class="section-title">
+    <h2>Invoices</h2>
+    <span class="count">@_rows.Count</span>
+</div>
+<div class="table-card">
+    <table data-testid="invoices-table">
         <thead>
             <tr>
-                <th>Bank reference</th>
-                <th>Payer</th>
+                <th>Invoice</th>
+                <th>Customer</th>
+                <th>Reference</th>
                 <th class="num">Amount</th>
-                <th>Received</th>
+                <th>Issued</th>
+                <th>Status</th>
+                <th>Matched payment</th>
+                <th class="num">Delta</th>
+                <th>Action</th>
             </tr>
         </thead>
         <tbody>
-            @foreach (var payment in _unapplied)
+            @foreach (var row in _rows)
             {
                 <tr>
-                    <td>@payment.BankReference</td>
-                    <td>@payment.PayerName</td>
-                    <td class="num">@payment.Amount.ToString("C")</td>
-                    <td>@payment.ReceivedDate.ToString("yyyy-MM-dd")</td>
+                    <td class="mono">@row.Invoice.InvoiceNumber</td>
+                    <td class="customer">@row.Invoice.CustomerName</td>
+                    <td class="mono">@row.Invoice.Reference</td>
+                    <td class="num amount">@row.Invoice.Amount.ToString("C")</td>
+                    <td>@row.Invoice.IssueDate.ToString("yyyy-MM-dd")</td>
+                    <td><span class="badge @row.Status.ToLowerInvariant()">@row.Status</span></td>
+                    <td>
+                        @if (row.Payment is not null)
+                        {
+                            <span class="matched-payment">
+                                @row.Payment.BankReference<span class="kind">@row.Invoice.MatchKind</span>
+                            </span>
+                        }
+                    </td>
+                    <td class="num delta @(row.Delta < 0 ? "negative" : row.Delta > 0 ? "positive" : "")">
+                        @(row.Delta == 0 ? "" : row.Delta.ToString("+#,##0.00;-#,##0.00"))
+                    </td>
+                    <td>
+                        @if (row.IsMatched)
+                        {
+                            <button class="btn small" disabled="@_busy" @onclick="() => Unmatch(row.Invoice.Id)">Unmatch</button>
+                        }
+                        else if (_unapplied.Count > 0)
+                        {
+                            <div class="match-controls">
+                                <select @bind="_selection[row.Invoice.Id]">
+                                    <option value="0">Select a payment...</option>
+                                    @foreach (var payment in _unapplied)
+                                    {
+                                        <option value="@payment.Id">
+                                            @payment.BankReference - @payment.Amount.ToString("C") - @payment.PayerName
+                                        </option>
+                                    }
+                                </select>
+                                <button class="btn small" disabled="@(_busy || Selected(row.Invoice.Id) == 0)"
+                                        @onclick="() => Match(row.Invoice.Id)">Match</button>
+                            </div>
+                        }
+                    </td>
                 </tr>
             }
         </tbody>
     </table>
+</div>
+
+<div class="section-title">
+    <h2>Unapplied payments</h2>
+    <span class="count">@_unapplied.Count</span>
+</div>
+@if (_unapplied.Count == 0)
+{
+    <p class="empty" data-testid="no-unapplied">Every payment has been applied to an invoice.</p>
+}
+else
+{
+    <div class="table-card">
+        <table data-testid="payments-table">
+            <thead>
+                <tr>
+                    <th>Bank reference</th>
+                    <th>Payer</th>
+                    <th class="num">Amount</th>
+                    <th>Received</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var payment in _unapplied)
+                {
+                    <tr>
+                        <td class="mono">@payment.BankReference</td>
+                        <td class="customer">@payment.PayerName</td>
+                        <td class="num amount">@payment.Amount.ToString("C")</td>
+                        <td>@payment.ReceivedDate.ToString("yyyy-MM-dd")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
 }
 
 @code {
@@ -121,6 +155,10 @@ else
     private readonly Dictionary<int, int> _selection = [];
     private string? _message;
     private bool _busy;
+
+    private int ReconciledPercent => _rows.Count == 0
+        ? 0
+        : (int)Math.Round(100.0 * _rows.Count(r => r.IsMatched) / _rows.Count);
 
     protected override Task OnInitializedAsync() => LoadAsync();
 

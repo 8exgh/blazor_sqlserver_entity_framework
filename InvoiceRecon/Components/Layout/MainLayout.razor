@@ -1,6 +1,28 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
 
-@Body
+<header class="app-header">
+    <div class="app-logo">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M9 12l2 2 4-5" />
+            <path d="M21 12a9 9 0 1 1-9-9" />
+        </svg>
+    </div>
+    <div>
+        <h1>Invoice Reconciliation</h1>
+        <span class="subtitle">Match incoming bank payments to open invoices</span>
+    </div>
+    <div class="header-spacer"></div>
+    <span class="env-chip">Demo</span>
+</header>
+
+<main class="page">
+    @Body
+</main>
+
+<footer class="app-footer">
+    Created by Sean Bennett &middot; Blazor on .NET 10 &middot; proof of concept
+</footer>
 
 <div id="blazor-error-ui" data-nosnippet>
     An unhandled error has occurred.

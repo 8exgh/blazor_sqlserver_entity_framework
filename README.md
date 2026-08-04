@@ -1,15 +1,31 @@
 # Invoice Reconciliation — Blazor PoC
 
+[![Tests](https://github.com/8exgh/blazor_sqlserver_entity_framework/actions/workflows/tests.yml/badge.svg)](https://github.com/8exgh/blazor_sqlserver_entity_framework/actions/workflows/tests.yml)
+
+Created by **Sean Bennett**.
+
 A minimal proof-of-concept demonstrating one feature: reconciling customer invoices against
 incoming bank payments. Blazor Web App (interactive server rendering) on .NET 10, EF Core against
-SQL Server.
+SQL Server. Unit-tested with xUnit, end-to-end-tested with Playwright in Docker, CI on GitHub
+Actions (results badge above).
+
+## Screenshots
+
+Fresh seed data, nothing reconciled yet:
+
+![Initial state — ten unmatched invoices](docs/screenshots/unmatched.png)
+
+After one click of **Run auto-match** — clean matches, discrepancies with signed deltas,
+and the ambiguous cases deliberately left for a human:
+
+![After auto-match — matched, discrepancy and unmatched rows](docs/screenshots/reconciled.png)
 
 ## Run it
 
 ```bash
 docker compose up -d                      # SQL Server 2022 on localhost:1433
 dotnet run --project InvoiceRecon         # then open the URL it prints
-dotnet test                               # 24 tests, no Docker required
+dotnet test                               # unit tests, no Docker required
 ```
 
 The app creates the `InvoiceRecon` database and seeds ~10 invoices and ~10 payments on first
@@ -44,19 +60,27 @@ no matching invoice.
 
 | Path | |
 |---|---|
-| `docker-compose.yml` | SQL Server container |
+| `docker-compose.yml` | SQL Server container for local development |
 | `InvoiceRecon/Models/` | `Invoice`, `Payment`, `MatchKind` |
 | `InvoiceRecon/Data/AppDbContext.cs` | DbSets, decimal precision, unique index on the match |
 | `InvoiceRecon/Data/DbInitializer.cs` | retrying `EnsureCreated` + demo seed |
 | `InvoiceRecon/Services/ReconciliationService.cs` | the matching engine |
 | `InvoiceRecon/Components/Pages/Reconcile.razor` | the UI |
 | `InvoiceRecon.Tests/` | xUnit tests for the matching engine |
+| `InvoiceRecon.E2E/` | Playwright browser tests against the running app |
+| `Dockerfile` | the app, published for containers |
+| `Dockerfile.e2e` | Playwright runner with Chromium baked in |
+| `docker-compose.e2e.yml` | SQL Server + app + Playwright, one command |
+| `.github/workflows/tests.yml` | CI: unit tests + dockerized e2e tests |
 | `terraform/` | sample Azure deployment — App Service + Azure SQL, never applied for real |
 
 ## Tests
 
+### Unit tests
+
 `dotnet test` — 24 xUnit tests, all Arrange/Act/Assert with FluentAssertions, covering the
-matching engine and the derived row status.
+matching engine and the derived row status. (The Playwright suite in the same solution skips
+itself unless `E2E_BASE_URL` is set, so this stays Docker-free.)
 
 They run against a fresh **SQLite in-memory** database per test rather than SQL Server, so the
 suite needs no Docker and finishes in under a second. The tradeoff is that they exercise EF Core
@@ -76,24 +100,54 @@ What they pin down:
 - A golden test asserting the shipped demo seed produces exactly the 4/2/1 outcome documented
   above, so changing the seed or the engine surfaces immediately.
 
+### End-to-end tests (Playwright)
+
+`InvoiceRecon.E2E/` drives the real app in headless Chromium: auto-match produces the documented
+4/2/1 outcome on screen, a second run is a no-op, manual match/unmatch round-trips, reset clears
+everything, and discrepancy rows show signed deltas. The whole environment — SQL Server, the app,
+and the Playwright runner — is containerized:
+
+```bash
+docker compose -f docker-compose.e2e.yml up --build --abort-on-container-exit --exit-code-from e2e
+```
+
+TRX results land in `./test-results`. To run the suite against an app you started yourself
+(faster while iterating):
+
+```bash
+E2E_BASE_URL=http://localhost:5276 dotnet test InvoiceRecon.E2E
+```
+
+(One-time browser install: `pwsh InvoiceRecon.E2E/bin/Debug/net10.0/playwright.ps1 install chromium`,
+or use the node bundled in the build output at `bin/Debug/net10.0/.playwright/`.)
+
+### CI
+
+`.github/workflows/tests.yml` runs both suites on every push and pull request: unit tests
+directly on the runner, e2e tests via `docker-compose.e2e.yml`. The badge at the top of this
+README reflects the latest run; TRX files are uploaded as build artifacts.
+
 ## PoC shortcuts
 
 Deliberate, and what you would change first for anything real:
 
 - `EnsureCreated()` instead of EF migrations — there is no schema-evolution story.
-- The SA password is committed in `appsettings.json` and `docker-compose.yml`.
+- The SA password is committed in `appsettings.json` and the compose files.
 - Matching runs in memory over all open invoices and payments; fine for tens of rows, not for
   hundreds of thousands.
 - One invoice maps to at most one payment. No partial payments, no one-payment-covers-many-invoices.
-- No authentication and no audit trail. Tests cover the engine only — nothing drives the Blazor
-  component itself (that would want bUnit).
+- No authentication and no audit trail.
 - FluentAssertions is pinned to **7.2.2**, the last Apache-2.0 release. Version 8 moved to the
   Xceed Community License, which requires a paid licence for commercial use. If that is a problem,
   `AwesomeAssertions` is a drop-in fork of 7.x that stays Apache-2.0.
 
 ## Apple Silicon note
 
-There is no arm64 SQL Server image, so `docker-compose.yml` pins `platform: linux/amd64` and
-relies on Docker Desktop's Rosetta emulation (Settings → General → *Use Rosetta for x86/amd64
+There is no arm64 SQL Server image, so both compose files pin `platform: linux/amd64` and
+rely on Docker Desktop's Rosetta emulation (Settings → General → *Use Rosetta for x86/amd64
 emulation*, on by default). If that gives you trouble, swap the image for
 `mcr.microsoft.com/azure-sql-edge:latest` — the same environment variables apply.
+
+---
+
+Created by **Sean Bennett**.

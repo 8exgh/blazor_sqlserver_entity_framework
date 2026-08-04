@@ -1,0 +1,40 @@
+# Self-contained end-to-end test environment: SQL Server + the app + a Playwright runner.
+#   docker compose -f docker-compose.e2e.yml up --build --abort-on-container-exit --exit-code-from e2e
+# TRX results land in ./test-results. Nothing is published to host ports, so it can run
+# alongside the dev docker-compose.yml stack.
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    platform: linux/amd64 # runs under Rosetta emulation on Apple Silicon
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "Recon_Passw0rd!"
+      MSSQL_PID: "Developer"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P 'Recon_Passw0rd!' -Q 'SELECT 1' || /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P 'Recon_Passw0rd!' -Q 'SELECT 1'"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__Default: "Server=sqlserver,1433;Database=InvoiceRecon;User Id=sa;Password=Recon_Passw0rd!;TrustServerCertificate=True;Encrypt=False"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+
+  e2e:
+    build:
+      context: .
+      dockerfile: Dockerfile.e2e
+    environment:
+      E2E_BASE_URL: http://app:8080
+    depends_on:
+      - app
+    volumes:
+      - ./test-results:/results
