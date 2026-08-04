@@ -126,7 +126,9 @@ ipch/
 
 # Visual Studio Trace Files
 *.e2e
-# ...but on case-insensitive filesystems that pattern also matches the e2e test project
+# ...but that pattern also matches our e2e Dockerfile, and on case-insensitive
+# filesystems the e2e test project too
+!Dockerfile.e2e
 !InvoiceRecon.E2E/
 
 # TFS 2012 Local Workspace

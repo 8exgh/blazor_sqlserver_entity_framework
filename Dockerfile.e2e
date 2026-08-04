@@ -1,0 +1,18 @@
+# Playwright test runner. Builds the e2e project and bakes in the Chromium build plus system
+# dependencies, so the container only needs the app URL (E2E_BASE_URL) at run time.
+FROM mcr.microsoft.com/dotnet/sdk:10.0
+WORKDIR /src
+
+COPY InvoiceRecon.E2E/InvoiceRecon.E2E.csproj InvoiceRecon.E2E/
+RUN dotnet restore InvoiceRecon.E2E/InvoiceRecon.E2E.csproj
+COPY InvoiceRecon.E2E/ InvoiceRecon.E2E/
+RUN dotnet build InvoiceRecon.E2E/InvoiceRecon.E2E.csproj -c Release
+
+# The Microsoft.Playwright package ships its own node + CLI in the build output, which avoids
+# needing PowerShell for the usual playwright.ps1 install step.
+RUN NODE=$(find InvoiceRecon.E2E/bin/Release/net10.0/.playwright/node -name node -type f | head -1) \
+    && "$NODE" InvoiceRecon.E2E/bin/Release/net10.0/.playwright/package/cli.js install --with-deps chromium
+
+COPY docker/run-e2e.sh /usr/local/bin/run-e2e.sh
+RUN chmod +x /usr/local/bin/run-e2e.sh
+ENTRYPOINT ["run-e2e.sh"]
