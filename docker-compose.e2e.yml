@@ -34,7 +34,7 @@ services:
       context: .
       dockerfile: Dockerfile.e2e
     environment:
-      E2E_BASE_URL: http://app:8080
+      E2E_BASE_URL: https://app:8080
     depends_on:
       - app
     volumes:
