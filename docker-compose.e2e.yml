@@ -17,7 +17,7 @@ services:
       retries: 30
       start_period: 20s
 
-  app:
+  wep:
     build:
       context: .
       dockerfile: Dockerfile
@@ -34,8 +34,8 @@ services:
       context: .
       dockerfile: Dockerfile.e2e
     environment:
-      E2E_BASE_URL: https://app:8080
+      E2E_BASE_URL: https://web:8080
     depends_on:
-      - app
+      - web
     volumes:
       - ./test-results:/results
